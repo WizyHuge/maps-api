@@ -3,11 +3,11 @@ from io import BytesIO
 import requests
 from PIL import Image
 from PyQt6.QtGui import QPixmap
-from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QPushButton
+from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QPushButton, QLineEdit
 from PyQt6.QtCore import Qt
 
 map_key = "f3a0fe3a-b07e-4840-a1da-06f18b2ddf13"
-
+geocoder_key = "8013b162-6b42-4997-9691-77b7074026e0"
 
 class MapWidget(QWidget):
     def __init__(self):
@@ -16,6 +16,7 @@ class MapWidget(QWidget):
         self.lat = 55.7558
         self.z = 10
         self.theme = "light"
+        self.pt = ""
         self.setGeometry(100, 100, 600, 480)
         self.setWindowTitle("Карта")
         self.label = QLabel(self)
@@ -25,18 +26,48 @@ class MapWidget(QWidget):
         self.btn_theme.move(10, 455)
         self.btn_theme.resize(120, 25)
         self.btn_theme.clicked.connect(self.toggle_theme)
+        self.search_input = QLineEdit(self)
+        self.search_input.move(140, 455)
+        self.search_input.resize(340, 25)
+        self.search_input.returnPressed.connect(self.search)
+        self.btn_search = QPushButton("Искать", self)
+        self.btn_search.move(490, 455)
+        self.btn_search.resize(100, 25)
+        self.btn_search.clicked.connect(self.search)
         self.load_map()
 
     def load_map(self):
-        resp = requests.get("https://static-maps.yandex.ru/v1", params={
+        params = {
             "ll": f"{self.lon},{self.lat}",
             "z": self.z,
             "theme": self.theme,
             "apikey": map_key
-        })
+        }
+        if self.pt:
+            params["pt"] = self.pt
+        resp = requests.get("https://static-maps.yandex.ru/v1", params=params)
         with open("map.png", "wb") as f:
             f.write(resp.content)
         self.label.setPixmap(QPixmap("map.png"))
+
+    def search(self):
+        text = self.search_input.text().strip()
+        if not text:
+            return
+        resp = requests.get("http://geocode-maps.yandex.ru/1.x/", params={
+            "apikey": geocoder_key,
+            "geocode": text,
+            "format": "json"
+        })
+        members = resp.json()["response"]["GeoObjectCollection"]["featureMember"]
+        if not members:
+            return
+        toponym = members[0]["GeoObject"]
+        self.lon, self.lat = toponym["Point"]["pos"].split(" ")
+        self.lon = float(self.lon)
+        self.lat = float(self.lat)
+        self.pt = f"{self.lon},{self.lat},pm2rdm"
+        self.load_map()
 
     def toggle_theme(self):
         if self.theme == "light":
