@@ -32,7 +32,11 @@ class MapWidget(QWidget):
             f.write(resp.content)
         self.label.setPixmap(QPixmap("map.png"))
 
+    def move_step(self):
+        return 360 / (2 ** self.z)
+
     def keyPressEvent(self, event):
+        step = self.move_step()
         if event.key() == Qt.Key.Key_PageUp:
             if self.z < 17:
                 self.z += 1
@@ -41,6 +45,18 @@ class MapWidget(QWidget):
             if self.z > 1:
                 self.z -= 1
                 self.load_map()
+        elif event.key() == Qt.Key.Key_Up:
+            self.lat = min(85, self.lat + step)
+            self.load_map()
+        elif event.key() == Qt.Key.Key_Down:
+            self.lat = max(-85, self.lat - step)
+            self.load_map()
+        elif event.key() == Qt.Key.Key_Left:
+            self.lon = max(-180, self.lon - step)
+            self.load_map()
+        elif event.key() == Qt.Key.Key_Right:
+            self.lon = min(180, self.lon + step)
+            self.load_map()
 
 
 app = QApplication(sys.argv)
