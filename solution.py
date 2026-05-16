@@ -3,7 +3,7 @@ from io import BytesIO
 import requests
 from PIL import Image
 from PyQt6.QtGui import QPixmap
-from PyQt6.QtWidgets import QApplication, QWidget, QLabel
+from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QPushButton
 from PyQt6.QtCore import Qt
 
 map_key = "f3a0fe3a-b07e-4840-a1da-06f18b2ddf13"
@@ -15,22 +15,37 @@ class MapWidget(QWidget):
         self.lon = 37.6176
         self.lat = 55.7558
         self.z = 10
-        self.setGeometry(100, 100, 600, 450)
+        self.theme = "light"
+        self.setGeometry(100, 100, 600, 480)
         self.setWindowTitle("Карта")
         self.label = QLabel(self)
         self.label.move(0, 0)
         self.label.resize(600, 450)
+        self.btn_theme = QPushButton("Тёмная тема", self)
+        self.btn_theme.move(10, 455)
+        self.btn_theme.resize(120, 25)
+        self.btn_theme.clicked.connect(self.toggle_theme)
         self.load_map()
 
     def load_map(self):
         resp = requests.get("https://static-maps.yandex.ru/v1", params={
             "ll": f"{self.lon},{self.lat}",
             "z": self.z,
+            "theme": self.theme,
             "apikey": map_key
         })
         with open("map.png", "wb") as f:
             f.write(resp.content)
         self.label.setPixmap(QPixmap("map.png"))
+
+    def toggle_theme(self):
+        if self.theme == "light":
+            self.theme = "dark"
+            self.btn_theme.setText("Светлая тема")
+        else:
+            self.theme = "light"
+            self.btn_theme.setText("Тёмная тема")
+        self.load_map()
 
     def move_step(self):
         return 360 / (2 ** self.z)
