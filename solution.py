@@ -3,7 +3,7 @@ from io import BytesIO
 import requests
 from PIL import Image
 from PyQt6.QtGui import QPixmap
-from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QPushButton, QLineEdit
+from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QPushButton, QLineEdit, QCheckBox
 from PyQt6.QtCore import Qt
 
 map_key = "f3a0fe3a-b07e-4840-a1da-06f18b2ddf13"
@@ -17,7 +17,8 @@ class MapWidget(QWidget):
         self.z = 10
         self.theme = "light"
         self.pt = ""
-        self.setGeometry(100, 100, 600, 480)
+        self.toponym_data = None
+        self.setGeometry(100, 100, 600, 500)
         self.setWindowTitle("Карта")
         self.label = QLabel(self)
         self.label.move(0, 0)
@@ -41,6 +42,9 @@ class MapWidget(QWidget):
         self.address_label = QLabel(self)
         self.address_label.move(10, 420)
         self.address_label.resize(470, 25)
+        self.cb_postcode = QCheckBox("Почтовый индекс", self)
+        self.cb_postcode.move(10, 475)
+        self.cb_postcode.stateChanged.connect(self.update_address)
         self.load_map()
 
     def load_map(self):
@@ -57,8 +61,19 @@ class MapWidget(QWidget):
             f.write(resp.content)
         self.label.setPixmap(QPixmap("map.png"))
 
+    def update_address(self):
+        if not self.toponym_data:
+            return
+        address = self.toponym_data["metaDataProperty"]["GeocoderMetaData"]["text"]
+        if self.cb_postcode.isChecked():
+            postal = self.toponym_data["metaDataProperty"]["GeocoderMetaData"]["Address"].get("postal_code", "")
+            if postal:
+                address += ", " + postal
+        self.address_label.setText(address)
+
     def reset_search(self):
         self.pt = ""
+        self.toponym_data = None
         self.search_input.clear()
         self.address_label.clear()
         self.load_map()
@@ -80,8 +95,8 @@ class MapWidget(QWidget):
         self.lon = float(self.lon)
         self.lat = float(self.lat)
         self.pt = f"{self.lon},{self.lat},pm2rdm"
-        address = toponym["metaDataProperty"]["GeocoderMetaData"]["text"]
-        self.address_label.setText(address)
+        self.toponym_data = toponym
+        self.update_address()
         self.load_map()
 
     def toggle_theme(self):
