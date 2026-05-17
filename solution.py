@@ -34,6 +34,10 @@ class MapWidget(QWidget):
         self.btn_search.move(490, 455)
         self.btn_search.resize(100, 25)
         self.btn_search.clicked.connect(self.search)
+        self.btn_reset = QPushButton("Сброс", self)
+        self.btn_reset.move(490, 420)
+        self.btn_reset.resize(100, 25)
+        self.btn_reset.clicked.connect(self.reset_search)
         self.load_map()
 
     def load_map(self):
@@ -49,6 +53,11 @@ class MapWidget(QWidget):
         with open("map.png", "wb") as f:
             f.write(resp.content)
         self.label.setPixmap(QPixmap("map.png"))
+
+    def reset_search(self):
+        self.pt = ""
+        self.search_input.clear()
+        self.load_map()
 
     def search(self):
         text = self.search_input.text().strip()
