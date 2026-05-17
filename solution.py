@@ -1,4 +1,5 @@
 import sys
+import math
 from io import BytesIO
 import requests
 from PIL import Image
@@ -9,6 +10,10 @@ from PyQt6.QtCore import Qt
 map_key = "f3a0fe3a-b07e-4840-a1da-06f18b2ddf13"
 geocoder_key = "8013b162-6b42-4997-9691-77b7074026e0"
 
+MAP_WIDTH = 600
+MAP_HEIGHT = 450
+
+
 class MapWidget(QWidget):
     def __init__(self):
         super().__init__()
@@ -18,11 +23,13 @@ class MapWidget(QWidget):
         self.theme = "light"
         self.pt = ""
         self.toponym_data = None
+        self.full_address = ""
+        self.postal_code = ""
         self.setGeometry(100, 100, 600, 500)
         self.setWindowTitle("Карта")
         self.label = QLabel(self)
         self.label.move(0, 0)
-        self.label.resize(600, 450)
+        self.label.resize(MAP_WIDTH, MAP_HEIGHT)
         self.btn_theme = QPushButton("Тёмная тема", self)
         self.btn_theme.move(10, 455)
         self.btn_theme.resize(120, 25)
@@ -62,18 +69,19 @@ class MapWidget(QWidget):
         self.label.setPixmap(QPixmap("map.png"))
 
     def update_address(self):
-        if not self.toponym_data:
+        if not self.full_address:
+            self.address_label.clear()
             return
-        address = self.toponym_data["metaDataProperty"]["GeocoderMetaData"]["text"]
-        if self.cb_postcode.isChecked():
-            postal = self.toponym_data["metaDataProperty"]["GeocoderMetaData"]["Address"].get("postal_code", "")
-            if postal:
-                address += ", " + postal
-        self.address_label.setText(address)
+        if self.cb_postcode.isChecked() and self.postal_code:
+            self.address_label.setText(f"{self.full_address}, {self.postal_code}")
+        else:
+            self.address_label.setText(self.full_address)
 
     def reset_search(self):
         self.pt = ""
         self.toponym_data = None
+        self.full_address = ""
+        self.postal_code = ""
         self.search_input.clear()
         self.address_label.clear()
         self.load_map()
@@ -96,6 +104,28 @@ class MapWidget(QWidget):
         self.lat = float(self.lat)
         self.pt = f"{self.lon},{self.lat},pm2rdm"
         self.toponym_data = toponym
+        meta = toponym["metaDataProperty"]["GeocoderMetaData"]
+        self.full_address = meta["text"]
+        self.postal_code = meta.get("Address", {}).get("postal_code", "")
+        self.update_address()
+        self.load_map()
+
+    def search_by_coords(self, lon, lat):
+        resp = requests.get("http://geocode-maps.yandex.ru/1.x/", params={
+            "apikey": geocoder_key,
+            "geocode": f"{lon},{lat}",
+            "format": "json"
+        })
+        members = resp.json()["response"]["GeoObjectCollection"]["featureMember"]
+        if not members:
+            return
+        toponym = members[0]["GeoObject"]
+        obj_lon, obj_lat = toponym["Point"]["pos"].split(" ")
+        self.pt = f"{float(obj_lon)},{float(obj_lat)},pm2rdm"
+        self.toponym_data = toponym
+        meta = toponym["metaDataProperty"]["GeocoderMetaData"]
+        self.full_address = meta["text"]
+        self.postal_code = meta.get("Address", {}).get("postal_code", "")
         self.update_address()
         self.load_map()
 
@@ -133,6 +163,17 @@ class MapWidget(QWidget):
         elif event.key() == Qt.Key.Key_Right:
             self.lon = min(180, self.lon + step)
             self.load_map()
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            x = event.position().x()
+            y = event.position().y()
+            if 0 <= x <= MAP_WIDTH and 0 <= y <= MAP_HEIGHT:
+                lon_span = 360 / (2 ** self.z)
+                lat_span = 180 / (2 ** self.z)
+                lon = self.lon + (x - MAP_WIDTH / 2) * lon_span / 256
+                lat = self.lat - (y - MAP_HEIGHT / 2) * lat_span / 256
+                self.search_by_coords(lon, lat)
 
 
 app = QApplication(sys.argv)
