@@ -9,6 +9,7 @@ from PyQt6.QtCore import Qt
 
 map_key = "f3a0fe3a-b07e-4840-a1da-06f18b2ddf13"
 geocoder_key = "8013b162-6b42-4997-9691-77b7074026e0"
+search_key = "dda3ddba-c9ea-4ead-9010-f43fbc15c6e3"
 
 MAP_WIDTH = 600
 MAP_HEIGHT = 450
@@ -174,6 +175,39 @@ class MapWidget(QWidget):
                 lon = self.lon + (x - MAP_WIDTH / 2) * lon_span / 256
                 lat = self.lat - (y - MAP_HEIGHT / 2) * lat_span / 256
                 self.search_by_coords(lon, lat)
+        elif event.button() == Qt.MouseButton.RightButton:
+            x = event.position().x()
+            y = event.position().y()
+            if 0 <= x <= MAP_WIDTH and 0 <= y <= MAP_HEIGHT:
+                lon_span = 360 / (2 ** self.z)
+                lat_span = 180 / (2 ** self.z)
+                lon = self.lon + (x - MAP_WIDTH / 2) * lon_span / 256
+                lat = self.lat - (y - MAP_HEIGHT / 2) * lat_span / 256
+                self.search_org(lon, lat)
+
+    def search_org(self, lon, lat):
+        resp = requests.get("http://geocode-maps.yandex.ru/1.x/", params={
+            "apikey": geocoder_key,
+            "geocode": f"{lon},{lat}",
+            "format": "json"
+        })
+        members = resp.json()["response"]["GeoObjectCollection"]["featureMember"]
+        if not members:
+            return
+        geo = members[0]["GeoObject"]
+        org_lon, org_lat = map(float, geo["Point"]["pos"].split())
+        dx = (lon - org_lon) * 111320 * math.cos(math.radians(lat))
+        dy = (lat - org_lat) * 110540
+        dist = math.sqrt(dx * dx + dy * dy)
+        if dist > 50:
+            return
+        self.pt = f"{org_lon},{org_lat},pm2blm"
+        meta = geo["metaDataProperty"]["GeocoderMetaData"]
+        self.full_address = meta["text"]
+        self.postal_code = meta.get("Address", {}).get("postal_code", "")
+        self.toponym_data = None
+        self.update_address()
+        self.load_map()
 
 
 app = QApplication(sys.argv)
