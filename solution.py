@@ -38,6 +38,9 @@ class MapWidget(QWidget):
         self.btn_reset.move(490, 420)
         self.btn_reset.resize(100, 25)
         self.btn_reset.clicked.connect(self.reset_search)
+        self.address_label = QLabel(self)
+        self.address_label.move(10, 420)
+        self.address_label.resize(470, 25)
         self.load_map()
 
     def load_map(self):
@@ -57,6 +60,7 @@ class MapWidget(QWidget):
     def reset_search(self):
         self.pt = ""
         self.search_input.clear()
+        self.address_label.clear()
         self.load_map()
 
     def search(self):
@@ -76,6 +80,8 @@ class MapWidget(QWidget):
         self.lon = float(self.lon)
         self.lat = float(self.lat)
         self.pt = f"{self.lon},{self.lat},pm2rdm"
+        address = toponym["metaDataProperty"]["GeocoderMetaData"]["text"]
+        self.address_label.setText(address)
         self.load_map()
 
     def toggle_theme(self):
