@@ -2,7 +2,6 @@ import sys
 import math
 from io import BytesIO
 import requests
-from PIL import Image
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QPushButton, QLineEdit, QCheckBox
 from PyQt6.QtCore import Qt
@@ -186,6 +185,12 @@ class MapWidget(QWidget):
                 self.search_org(lon, lat)
 
     def search_org(self, lon, lat):
+        self.pt = ""
+        self.toponym_data = None
+        self.full_address = ""
+        self.postal_code = ""
+        self.search_input.clear()
+        self.address_label.clear()
         resp = requests.get("http://geocode-maps.yandex.ru/1.x/", params={
             "apikey": geocoder_key,
             "geocode": f"{lon},{lat}",
@@ -193,19 +198,40 @@ class MapWidget(QWidget):
         })
         members = resp.json()["response"]["GeoObjectCollection"]["featureMember"]
         if not members:
+            self.load_map()
             return
-        geo = members[0]["GeoObject"]
-        org_lon, org_lat = map(float, geo["Point"]["pos"].split())
-        dx = (lon - org_lon) * 111320 * math.cos(math.radians(lat))
-        dy = (lat - org_lat) * 110540
-        dist = math.sqrt(dx * dx + dy * dy)
-        if dist > 50:
+        addr_meta = members[0]["GeoObject"]["metaDataProperty"]["GeocoderMetaData"]
+        formatted = addr_meta.get("Address", {}).get("formatted", addr_meta["text"])
+        search_text = formatted.replace("Россия, ", "")
+        resp2 = requests.get("https://search-maps.yandex.ru/v1/", params={
+            "apikey": search_key,
+            "text": search_text,
+            "ll": f"{lon},{lat}",
+            "spn": "0.004,0.004",
+            "type": "biz",
+            "lang": "ru_RU",
+            "results": 10
+        })
+        features = resp2.json().get("features", [])
+        found = None
+        for f in features:
+            org_lon, org_lat = f["geometry"]["coordinates"]
+            dx = (lon - org_lon) * 111320 * math.cos(math.radians(lat))
+            dy = (lat - org_lat) * 110540
+            dist = math.sqrt(dx * dx + dy * dy)
+            if dist <= 50:
+                found = f
+                break
+        if not found:
+            self.load_map()
             return
+        org_lon, org_lat = found["geometry"]["coordinates"]
         self.pt = f"{org_lon},{org_lat},pm2blm"
-        meta = geo["metaDataProperty"]["GeocoderMetaData"]
-        self.full_address = meta["text"]
-        self.postal_code = meta.get("Address", {}).get("postal_code", "")
-        self.toponym_data = None
+        name = found["properties"]["name"]
+        desc = found["properties"].get("description", "")
+        self.full_address = f"{name} — {desc}" if desc else name
+        company_meta = found["properties"].get("CompanyMetaData", {})
+        self.postal_code = company_meta.get("Address", {}).get("postal_code", "")
         self.update_address()
         self.load_map()
 
